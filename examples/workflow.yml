@@ -1,0 +1,29 @@
+# Example GitHub Actions workflow: render your email templates with test
+# data (your step), then pre-flight the rendered HTML (this action).
+# Copy into your repo at .github/workflows/email-preflight.yml
+name: Email preflight
+
+on:
+  pull_request:
+    paths:
+      - 'src/emails/**'
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Your render step goes here. Examples: ---
+      # - run: npm ci
+      # - run: npm run render-emails   # writes rendered HTML to src/emails/
+      #
+      # email-preflight checks RENDERED html, because that's what your
+      # customers receive. If your build already renders templates into a
+      # directory during CI, point the config's templates: setting at it.
+
+      - name: Pre-flight the rendered email
+        uses: CoolGlasses/email-preflight@v1
+        # with:
+        #   config: mailcheck.yml        # default: ./mailcheck.yml if present
+        #   path: src/emails/**          # optional override

@@ -1,0 +1,43 @@
+# email-preflight configuration — copy this file to your repo root as
+# mailcheck.yml and edit the three or four values that describe YOUR project.
+# Everything else has a sensible default. Full reference: docs/CONFIG.md
+#
+# IMPORTANT: point this at RENDERED email HTML (the output of your template
+# engine, rendered with test data), not at raw template source. That's the
+# artifact your customers actually receive, and it's what the rules judge.
+# Most setups render templates in CI with fixture data, then run this check.
+
+# Where your rendered templates live. A directory, a single file, or a
+# glob like "src/emails/**".
+templates: "src/emails/**"
+
+# Your real production domain. Any link to a different host is flagged
+# unless the host is listed under allow_domains below.
+production_domain: app.example.com
+
+# Hosts that are legitimately linked from your email (help centre, status
+# page, social profiles) — exempt from the production-domain check.
+allow_domains:
+  - help.example.com
+  - status.example.com
+
+# Gmail clips messages larger than this (in KB of HTML). 102 is Gmail's
+# real threshold; only lower it if you want an earlier warning.
+# gmail_clip_kb: 102
+
+# Rule severities: fail (blocks the change), warn (reported, doesn't
+# block), off (not checked). Shown with their defaults — delete any line
+# you don't want to change.
+rules:
+  outlook_css: fail      # CSS that Outlook for Windows silently ignores
+  gmail_clip: warn       # HTML size over Gmail's clip threshold
+  blank_variables: fail  # unrendered {{ }} / ${ } or literal "undefined" values
+  staging_links: fail    # links to staging / dev / localhost / wrong domain
+  dark_mode: warn        # hard-coded light colours, no dark-mode handling
+  insecure_links: warn   # http:// links
+  image_alt: warn        # <img> without alt text
+
+# Per-file exceptions, in the form "part-of-path:rule_id". Use sparingly —
+# every entry is a place a real problem can hide later.
+# ignore:
+#   - internal-report:staging_links

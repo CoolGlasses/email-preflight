@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Your receipt</title>
+<style>
+  body { margin: 0; padding: 0; background-color: #f4f4f4; }
+  .wrap { background-color: #ffffff; }
+  .body-text { font-family: Arial, sans-serif; font-size: 15px; color: #222222; line-height: 1.5; }
+  @media (prefers-color-scheme: dark) {
+    .wrap { background-color: #1c1c1e !important; }
+    .body-text { color: #f2f2f2 !important; }
+  }
+</style>
+</head>
+<body>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td align="center">
+      <table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0">
+        <tr>
+          <td class="body-text" style="padding: 24px;">
+            <p>Hi Sarah,</p>
+            <p>Thanks for your order. Your receipt for order #8412 is below.</p>
+            <p>Total charged: $48.00</p>
+            <p><a href="https://app.acme.com/orders/8412">View your order</a> or read
+               <a href="https://help.acme.com/receipts">how receipts work</a>.</p>
+            <p><img src="https://app.acme.com/assets/logo.png" alt="Acme" width="120"></p>
+            <p style="font-size: 12px;">The word undefined should never appear in a normal sentence like this one about software documentation.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

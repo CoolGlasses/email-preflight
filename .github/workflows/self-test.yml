@@ -1,0 +1,23 @@
+name: Self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run the test suite
+        run: npm test
+      - name: Dogfood — the action must pass on the clean fixture
+        uses: ./
+        with:
+          path: test/fixtures/clean
+      - name: Dogfood — JSON output smoke test
+        run: node src/cli.js --path test/fixtures/clean --format json

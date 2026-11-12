@@ -1,0 +1,28 @@
+name: 'Email Preflight'
+description: 'Catch broken transactional email before it ships — checks rendered email HTML for Outlook-breaking CSS, Gmail size clipping, unfilled variables, staging links, dark-mode traps, and more.'
+author: 'Email Preflight'
+branding:
+  icon: 'mail'
+  color: 'orange'
+inputs:
+  config:
+    description: 'Path to your mailcheck.yml config file. If omitted, ./mailcheck.yml is used when present.'
+    required: false
+    default: ''
+  path:
+    description: 'Templates to check (directory, file, or glob like "src/emails/**"). Overrides the config templates setting.'
+    required: false
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Run email-preflight
+      shell: bash
+      run: |
+        args=""
+        if [ -n "${{ inputs.config }}" ]; then args="$args --config ${{ inputs.config }}"; fi
+        if [ -n "${{ inputs.path }}" ]; then args="$args --path ${{ inputs.path }}"; fi
+        node "${{ github.action_path }}/src/cli.js" $args

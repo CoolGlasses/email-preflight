@@ -1,0 +1,16 @@
+# Test config: deliberately tight clip limit so the oversized fixture trips it.
+templates: "fixtures"
+production_domain: app.acme.com
+gmail_clip_kb: 2
+
+allow_domains:
+  - help.acme.com
+
+rules:
+  outlook_css: fail
+  gmail_clip: warn
+  blank_variables: fail
+  staging_links: fail
+  dark_mode: warn
+  insecure_links: warn
+  image_alt: warn
