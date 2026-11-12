@@ -100,9 +100,13 @@ function main() {
   }
 
   if (process.env.GITHUB_ACTIONS === 'true') {
-    for (const f of findings) {
-      const level = f.severity === 'fail' ? 'error' : 'warning';
-      console.log(`::${level} file=${f.file},line=${f.line},title=${f.rule}::${f.message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`);
+    // Annotations go to stdout, so JSON mode must skip them: stdout stays
+    // pure JSON for machine consumers (tests caught this in CI).
+    if (args.format !== 'json') {
+      for (const f of findings) {
+        const level = f.severity === 'fail' ? 'error' : 'warning';
+        console.log(`::${level} file=${f.file},line=${f.line},title=${f.rule}::${f.message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`);
+      }
     }
     if (process.env.GITHUB_STEP_SUMMARY) {
       const lines = [

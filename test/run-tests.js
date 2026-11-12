@@ -10,6 +10,7 @@
  *  3. Config parsing, severity overrides, and ignore entries behave.
  */
 const assert = require('assert');
+const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { loadConfig, parseConfigText } = require('../src/config');
@@ -144,5 +145,20 @@ test('CLI: JSON format parses and reports the summary', () => {
   assert.ok(parsed.summary.fail > 0 && parsed.summary.warn > 0);
 });
 
+test('CLI: JSON output stays pure JSON in a GitHub Actions environment', () => {
+  const os = require('os');
+  const summaryPath = path.join(os.tmpdir(), `ep-summary-${process.pid}.md`);
+  let out, code = 0;
+  try {
+    out = execFileSync(process.execPath, [path.join(TEST_DIR, '..', 'src', 'cli.js'), '--config', 'mailcheck.test.yml', '--format', 'json'],
+      { cwd: TEST_DIR, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: summaryPath } });
+  } catch (err) { code = err.status; out = err.stdout; }
+  assert.strictEqual(code, 1);
+  const parsed = JSON.parse(out); // annotations on stdout would throw here
+  assert.ok(parsed.summary.fail >= 10);
+  assert.ok(fs.readFileSync(summaryPath, 'utf8').includes('email-preflight'));
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
+
