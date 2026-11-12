@@ -13,3 +13,8 @@ First working release.
 - GitHub Action (composite) with PR annotations and job-summary report
 - Fixture-based test suite: every broken fixture is caught, the clean
   fixture passes with zero findings
+- Fixed (same day, caught by this repo's own CI on first push): JSON
+  output mode in GitHub Actions environments — workflow annotations were
+  printed to stdout after the JSON, breaking machine parsing. JSON mode
+  now keeps stdout pure JSON; a regression test covers the Actions
+  environment.
