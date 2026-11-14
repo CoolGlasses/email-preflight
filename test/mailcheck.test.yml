@@ -5,9 +5,11 @@ gmail_clip_kb: 2
 
 allow_domains:
   - help.acme.com
+  - demo.app.acme.com
 
 rules:
   outlook_css: fail
+  outlook_cosmetic: warn
   gmail_clip: warn
   blank_variables: fail
   staging_links: fail

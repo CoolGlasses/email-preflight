@@ -19,7 +19,8 @@ src/emails/password-reset.html
 
 | Rule | Catches | Default |
 |---|---|---|
-| `outlook_css` | CSS that Outlook for Windows silently ignores (flex, grid, position, border-radius, shadows, …) — layout collapses for every Outlook recipient | fail |
+| `outlook_css` | Structural CSS that Outlook for Windows silently ignores (flex, grid, position, gap, transform, …) — layout collapses for every Outlook recipient. Also catches button chrome (`padding` / `display: inline-block`) on `<a>` tags, the classic broken call-to-action | fail |
+| `outlook_cosmetic` | Cosmetic CSS Outlook ignores (border-radius, shadows, opacity, gradients) — the email degrades gracefully, layout intact, so it warns instead of failing | warn |
 | `gmail_clip` | HTML over ~102 KB, which Gmail clips behind "[Message clipped]", hiding everything past the cut | warn |
 | `blank_variables` | Unrendered `{{ }}`, `${ }`, `<% %>` expressions, and literal `undefined` / `[object Object]` values that reached the output | fail |
 | `staging_links` | Links to staging/dev/localhost/tunnel hosts, bare IPs — and, once you set your production domain, any link to an unexpected host | fail |

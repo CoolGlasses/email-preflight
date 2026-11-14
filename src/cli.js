@@ -24,7 +24,7 @@ function parseArgs(argv) {
     else if (a === '--path') args.path = argv[++i];
     else if (a === '--format') args.format = argv[++i];
     else if (a === '--help' || a === '-h') args.help = true;
-    else if (!a.startsWith('--') && !args.path && /\.(html?|mjml|hbs|ejs)$/i.test(a)) args.path = a;
+    else if (!a.startsWith('--') && !args.path && /\.(html?|mjml|hbs|handlebars|ejs|liquid|erb)$/i.test(a)) args.path = a;
     else throw new Error(`Unknown argument: ${a}`);
   }
   return args;
@@ -91,7 +91,7 @@ function main() {
       for (const [file, list] of byFile) {
         console.log(`\n${file}`);
         for (const f of list) {
-          const tag = f.severity === 'fail' ? 'FAIL' : 'warn';
+          const tag = f.severity === 'fail' ? 'FAIL' : 'WARN';
           console.log(`  line ${f.line}  [${tag}] ${f.rule}: ${f.message}`);
         }
       }

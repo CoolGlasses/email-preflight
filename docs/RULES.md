@@ -18,15 +18,34 @@ that is fine in every other client collapses for Outlook recipients:
 - `position:` (any value)
 - `float:`
 - `gap:`
-- `border-radius`, `box-shadow`, `text-shadow`
-- `opacity`
 - `transform`, `transition`, `animation`
-- `linear-gradient()`
-- `background-size`
+- Button chrome on an `<a>` tag: `padding` or `display: inline-block` in an
+  anchor's style. Outlook ignores both on anchors, so a styled
+  call-to-action renders as an unpadded link — white button text can land
+  on a white card. Put `bgcolor` and padding on a surrounding `<td>` and
+  keep the anchor as plain text.
+
+Property matching is exact: hyphenated properties are different properties.
+`text-transform`, `background-position`, `column-gap`, and
+`-webkit-transform` are **not** flagged — they are not the properties above.
 
 Findings report the property and the line. The fix is structural: use
 table-based layout for anything load-bearing, and treat modern CSS as
 progressive enhancement only, behind Outlook conditional comments if needed.
+
+## outlook_cosmetic — default: warn
+
+The other half of Outlook's ignored list — properties whose loss degrades
+the email gracefully instead of breaking it:
+
+- `border-radius`, `box-shadow`, `text-shadow`
+- `opacity`
+- `linear-gradient()`
+- `background-size`
+
+Outlook drops these and the layout stays intact (square corners, full
+opacity). They warn by default rather than fail: blocking a merge over
+square corners is how a checker gets switched off.
 
 ## gmail_clip — default: warn
 
@@ -77,6 +96,18 @@ the classic incident — a `staging.app.example.com` link is only the
 obvious case; a forgotten `app-v2.example.net` or an engineer's personal
 deployment is the quiet one.
 
+Details that matter:
+
+- Matching is by host suffix on a dot boundary: with
+  `production_domain: example.com`, links to `www.example.com` count as
+  production. A suspicious label still flags (`staging.example.com`).
+- `allow_domains` wins over everything, including the label list:
+  allowlisting `demo.example.com` exempts it. That is how you say "this
+  one is intended."
+- Only `<a href>` links are checked — the destinations a customer can
+  click. `<link>` resource hrefs (stylesheets, preconnects) are not
+  destinations and are never flagged by this rule.
+
 Non-HTTP links (`mailto:`, `tel:`, `#anchors`, template-generated URLs that
 don't begin with `http`) are skipped.
 
@@ -84,14 +115,19 @@ don't begin with `http`) are skipped.
 
 Apple Mail, Outlook, and Gmail apps apply dark-mode transformations:
 inverting or force-darkening backgrounds. An email that hard-codes a light
-background (`#ffffff`) and dark text with **no**
-`@media (prefers-color-scheme: dark)` handling anywhere in the file
-commonly renders as dark text on a darkened background — unreadable.
+background (`#ffffff`) and dark text with **no** dark-mode handling
+anywhere in the file commonly renders as dark text on a darkened
+background — unreadable.
+
+"Handling" means any of: an `@media (prefers-color-scheme: dark)` block, or
+a `<meta name="color-scheme">` / `<meta name="supported-color-schemes">`
+declaration (the `light only` opt-out is a legitimate strategy).
 
 This rule fires at most once per file, and only when explicit light-theme
 colours are present *and* dark-mode handling is absent. It is a prompt to
-make a decision (add dark rules, or choose colours that survive
-inversion), not a claim that the email is certainly broken in every client.
+make a decision (add dark rules, declare a color-scheme meta, or choose
+colours that survive inversion), not a claim that the email is certainly
+broken in every client.
 
 ## insecure_links — default: warn
 

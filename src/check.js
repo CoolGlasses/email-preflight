@@ -96,8 +96,14 @@ function checkFile(filePath, cfg, cwd) {
       raw = [{ rule: ruleId, line: 1, message: `Rule error: ${err.message}` }];
     }
     for (const f of raw) {
-      if (isIgnored(relPath, ruleId, cfg.ignore)) continue;
-      findings.push({ file: relPath, rule: ruleId, severity, line: f.line, message: f.message });
+      // A rule function may emit findings for a sibling rule id (the
+      // Outlook checker emits outlook_cosmetic alongside outlook_css);
+      // severity and ignores apply per emitted rule, not per function.
+      const emittedRule = f.rule || ruleId;
+      const emittedSeverity = cfg.rules[emittedRule];
+      if (!emittedSeverity || emittedSeverity === 'off') continue;
+      if (isIgnored(relPath, emittedRule, cfg.ignore)) continue;
+      findings.push({ file: relPath, rule: emittedRule, severity: emittedSeverity, line: f.line, message: f.message });
     }
   }
   findings.sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule));

@@ -26,18 +26,26 @@ Where the **rendered** email HTML lives. Accepts:
 
 Your real production host, e.g. `app.example.com`. When set, the
 `staging_links` rule flags any absolute link to a host that is neither this
-domain nor in `allow_domains`.
+domain nor in `allow_domains`. Hosts match on a dot boundary, so with
+`production_domain: example.com` a link to `www.example.com` counts as
+production — while `staging.example.com` still flags on its label.
 
 ### `allow_domains` — optional list
 
 Hosts legitimately linked from your email (help centre, status page,
-social profiles). Exempt from the production-domain check.
+social profiles). Exempt from the production-domain check — and from the
+non-production label check too: allowlisting `demo.example.com` is how you
+say that host is intended. Entries match subdomains on a dot boundary,
+like `production_domain`.
 
 ```yaml
 allow_domains:
   - help.example.com
   - status.example.com
 ```
+
+The one-line flow form is equivalent: `allow_domains: [help.example.com, status.example.com]`.
+A bare string is a config error — a config is never silently misread.
 
 ### `gmail_clip_kb` — optional, default `102`
 

@@ -29,7 +29,8 @@ allow_domains:
 # block), off (not checked). Shown with their defaults — delete any line
 # you don't want to change.
 rules:
-  outlook_css: fail      # CSS that Outlook for Windows silently ignores
+  outlook_css: fail      # structural CSS Outlook ignores + button chrome on <a> tags
+  outlook_cosmetic: warn # cosmetic CSS Outlook ignores (radius, shadows, opacity)
   gmail_clip: warn       # HTML size over Gmail's clip threshold
   blank_variables: fail  # unrendered {{ }} / ${ } or literal "undefined" values
   staging_links: fail    # links to staging / dev / localhost / wrong domain

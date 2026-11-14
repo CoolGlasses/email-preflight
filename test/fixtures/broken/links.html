@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Verify your email</title></head>
+<head><meta charset="utf-8"><title>Verify your email</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">
+</head>
 <body>
 <p>Welcome! Please confirm your account:</p>
 <p><a href="https://staging.app.acme.com/verify?token=abc123">Confirm on staging</a></p>
 <p><a href="http://app.acme.com/verify?token=abc123">Confirm (insecure)</a></p>
 <p><a href="http://localhost:3000/verify">Local dev link</a></p>
 <p><a href="https://app.acme.com/verify?token=abc123">Confirm on production</a></p>
+<p><a href="https://www.app.acme.com/account">Account (www subdomain of production)</a></p>
+<p><a href="https://demo.app.acme.com/preview">Demo (suspicious label, but allowlisted)</a></p>
 <p><a href="https://help.acme.com/verify-help">Help article (allowed domain)</a></p>
 </body>
 </html>

@@ -29,22 +29,48 @@ const { files, findings } = runCheck(cfg, TEST_DIR);
 const byFile = (suffix) => findings.filter((f) => f.file.endsWith(suffix));
 const rulesIn = (suffix) => [...new Set(byFile(suffix).map((f) => f.rule))].sort();
 
-test('all 6 fixtures are found', () => {
-  assert.strictEqual(files.length, 6, `expected 6 files, got ${files.length}: ${files.join(', ')}`);
+test('all 9 fixtures are found', () => {
+  assert.strictEqual(files.length, 9, `expected 9 files, got ${files.length}: ${files.join(', ')}`);
 });
 
 test('clean fixture produces zero findings (no false positives)', () => {
+  // Includes the ScoutCreate-beta traps: text-transform:uppercase,
+  // background-position, and -webkit-transform must NOT be flagged —
+  // those are different, supported properties, not transform/position.
   const clean = byFile('clean/receipt.html');
   assert.deepStrictEqual(clean, [], `clean fixture flagged: ${JSON.stringify(clean, null, 2)}`);
 });
 
-test('outlook fixture: flex, grid, gap, border-radius, box-shadow, position, opacity all caught', () => {
-  const f = byFile('broken/outlook.html').filter((x) => x.rule === 'outlook_css');
-  assert.ok(f.length >= 7, `expected >=7 outlook_css findings, got ${f.length}`);
-  for (const needle of ['display: flex', 'display: grid', 'border-radius', 'position:']) {
-    assert.ok(f.some((x) => x.message.includes(needle)), `missing finding for ${needle}`);
+test('dark-meta fixture: color-scheme meta counts as dark-mode handling', () => {
+  const f = byFile('clean/dark-meta.html');
+  assert.deepStrictEqual(f, [], `dark-meta fixture flagged: ${JSON.stringify(f, null, 2)}`);
+});
+
+test('outlook fixture: structural properties fail, cosmetic properties warn separately', () => {
+  const structural = byFile('broken/outlook.html').filter((x) => x.rule === 'outlook_css');
+  for (const needle of ['display: flex', 'display: grid', 'gap:', 'position:', 'Button chrome']) {
+    assert.ok(structural.some((x) => x.message.includes(needle)), `missing outlook_css finding for ${needle}: ${JSON.stringify(structural)}`);
   }
-  assert.ok(f.every((x) => x.severity === 'fail'));
+  assert.ok(structural.every((x) => x.severity === 'fail'));
+  const cosmetic = byFile('broken/outlook.html').filter((x) => x.rule === 'outlook_cosmetic');
+  for (const needle of ['border-radius', 'box-shadow', 'opacity']) {
+    assert.ok(cosmetic.some((x) => x.message.includes(needle)), `missing outlook_cosmetic finding for ${needle}`);
+  }
+  assert.ok(cosmetic.every((x) => x.severity === 'warn'));
+});
+
+test('cosmetic fixture: six cosmetic findings, zero structural findings', () => {
+  const cosmetic = byFile('broken/cosmetic.html').filter((x) => x.rule === 'outlook_cosmetic');
+  assert.strictEqual(cosmetic.length, 6, `expected 6 outlook_cosmetic findings, got ${cosmetic.length}: ${JSON.stringify(cosmetic)}`);
+  const structural = byFile('broken/cosmetic.html').filter((x) => x.rule === 'outlook_css');
+  assert.strictEqual(structural.length, 0);
+});
+
+test('erb-source fixture: img with ERB src and real alt is not flagged for image_alt', () => {
+  const alt = byFile('broken/erb-source.html.erb').filter((x) => x.rule === 'image_alt');
+  assert.strictEqual(alt.length, 0, `ERB img flagged: ${JSON.stringify(alt)}`);
+  const vars = byFile('broken/erb-source.html.erb').filter((x) => x.rule === 'blank_variables');
+  assert.ok(vars.length >= 1, 'the <% %> tag itself is (documented) source-mode noise');
 });
 
 test('variables fixture: unrendered tokens and literal undefined caught as failures', () => {
@@ -58,11 +84,17 @@ test('variables fixture: unrendered tokens and literal undefined caught as failu
 
 test('links fixture: staging + localhost flagged, insecure flagged, prod and allowed domains clean', () => {
   const staging = byFile('broken/links.html').filter((x) => x.rule === 'staging_links');
-  // staging subdomain + localhost + (http prod link is prod host, so not staging) => exactly 2
+  // Exactly 2: the staging subdomain and localhost. NOT flagged, by
+  // design: the production host, its www subdomain (suffix match), the
+  // allowlisted demo subdomain (allow list beats the suspicious-label
+  // list), the allowlisted help domain, and the Google Fonts <link>
+  // stylesheet (resource hrefs are not customer links).
   assert.strictEqual(staging.length, 2, `expected 2 staging_links findings, got ${staging.length}: ${JSON.stringify(staging)}`);
   const insecure = byFile('broken/links.html').filter((x) => x.rule === 'insecure_links');
-  assert.strictEqual(insecure.length, 2, `expected 2 insecure_links findings (staging http? no—http prod + http localhost), got ${insecure.length}`);
+  assert.strictEqual(insecure.length, 2, `expected 2 insecure_links findings (http prod + http localhost), got ${insecure.length}`);
   assert.ok(!staging.some((x) => x.message.includes('help.acme.com')), 'allowed domain must not be flagged');
+  assert.ok(!staging.some((x) => x.message.includes('demo.app.acme.com')), 'allowlisted demo host must not be flagged');
+  assert.ok(!staging.some((x) => x.message.includes('fonts.googleapis.com')), 'stylesheet <link> host must not be flagged');
 });
 
 test('dark-and-images fixture: one dark_mode warning, two image_alt warnings', () => {
@@ -112,6 +144,27 @@ test('config parser: quoted scalars, comments, and the example shape', () => {
   assert.deepStrictEqual(parsed.ignore, ['internal:staging_links']);
 });
 
+test('config parser: flow list [a, b] parses as a list', () => {
+  const parsed = parseConfigText('templates: x\nallow_domains: [fonts.googleapis.com, fonts.gstatic.com]\n', 'test');
+  assert.deepStrictEqual(parsed.allow_domains, ['fonts.googleapis.com', 'fonts.gstatic.com']);
+});
+
+test('config: allow_domains as a bare string is a loud error, not a rule crash', () => {
+  const os = require('os');
+  const p = path.join(os.tmpdir(), `ep-badcfg-${process.pid}.yml`);
+  fs.writeFileSync(p, 'templates: fixtures\nallow_domains: just-a-string.example.com\n');
+  assert.throws(() => loadConfig(p), /must be a list/);
+  fs.unlinkSync(p);
+});
+
+test('CLI: a bare .erb file path is accepted (exit 1 on findings, not usage error 2)', () => {
+  let code = 0;
+  try {
+    execFileSync('node', [path.join(TEST_DIR, '..', 'src', 'cli.js'), '--config', path.join(TEST_DIR, 'mailcheck.test.yml'), path.join(TEST_DIR, 'fixtures', 'broken', 'erb-source.html.erb')], { cwd: TEST_DIR, stdio: 'pipe' });
+  } catch (err) { code = err.status; }
+  assert.strictEqual(code, 1, `expected exit 1 for the erb fixture, got ${code}`);
+});
+
 test('config parser: unknown rule name is a loud error', () => {
   assert.throws(() => {
     const bad = parseConfigText('templates: x\nrules:\n  nope_rule: fail\n', 'test');
@@ -141,7 +194,7 @@ test('CLI: JSON format parses and reports the summary', () => {
     execFileSync('node', [path.join(TEST_DIR, '..', 'src', 'cli.js'), '--config', path.join(TEST_DIR, 'mailcheck.test.yml'), '--format', 'json'], { cwd: TEST_DIR, stdio: 'pipe' });
   } catch (err) { out = err.stdout.toString(); }
   const parsed = JSON.parse(out);
-  assert.strictEqual(parsed.filesChecked, 6);
+  assert.strictEqual(parsed.filesChecked, 9);
   assert.ok(parsed.summary.fail > 0 && parsed.summary.warn > 0);
 });
 

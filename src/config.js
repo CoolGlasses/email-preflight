@@ -18,6 +18,7 @@ const DEFAULTS = {
   gmail_clip_kb: 102,
   rules: {
     outlook_css: 'fail',
+    outlook_cosmetic: 'warn',
     gmail_clip: 'warn',
     blank_variables: 'fail',
     staging_links: 'fail',
@@ -46,6 +47,12 @@ function stripComment(line) {
 
 function parseScalar(raw) {
   const v = raw.trim();
+  if (v.startsWith('[') && v.endsWith(']')) {
+    // Flow list: [a, b, c] — one-line equivalent of the "- item" form.
+    const inner = v.slice(1, -1).trim();
+    if (inner === '') return [];
+    return inner.split(',').map((s) => parseScalar(s));
+  }
   if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
     return v.slice(1, -1);
   }
@@ -123,6 +130,21 @@ function loadConfig(configPath, overrides = {}) {
   if (overrides.templates) cfg.templates = overrides.templates;
   if (!cfg.templates) {
     throw new Error('No templates to check: set "templates:" in the config file or pass --path.');
+  }
+  // Type-check the merged config. A config that parses to the wrong
+  // SHAPE (e.g. allow_domains as a bare string) must fail here, loudly,
+  // at load time — 0.1.0 let one through and a rule crashed mid-run,
+  // surfacing as a "Rule error" finding instead of a config error.
+  if (typeof cfg.templates !== 'string') {
+    throw new Error('"templates" must be a single path or glob string');
+  }
+  if (cfg.production_domain !== null && typeof cfg.production_domain !== 'string') {
+    throw new Error('"production_domain" must be a string');
+  }
+  for (const listKey of ['allow_domains', 'ignore']) {
+    if (!Array.isArray(cfg[listKey]) || cfg[listKey].some((v) => typeof v !== 'string')) {
+      throw new Error(`"${listKey}" must be a list of strings — use "- item" lines or the [a, b] form`);
+    }
   }
   if (typeof cfg.gmail_clip_kb !== 'number' || cfg.gmail_clip_kb <= 0) {
     throw new Error('gmail_clip_kb must be a positive number');

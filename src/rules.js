@@ -15,28 +15,48 @@ function lineOf(content, index) {
   return line;
 }
 
-/* ---------- outlook_css ----------
+/* ---------- outlook_css / outlook_cosmetic ----------
  * Outlook for Windows renders HTML email with Microsoft Word's engine.
- * It silently drops the CSS below (flex/grid layouts collapse into a
- * stacked pile, border-radius and shadows vanish, positioned elements
- * land in the wrong place). Nothing errors anywhere — the email just
- * arrives broken for every Outlook-on-Windows recipient.
+ * It silently drops the CSS below. Two buckets, because the damage
+ * differs and the severity must too:
+ *
+ *  - outlook_css (structural): flex/grid layouts collapse into a
+ *    stacked pile, positioned elements land in the wrong place.
+ *  - outlook_cosmetic: border-radius, shadows, opacity and gradients
+ *    are dropped, but the layout stays intact — square corners, not a
+ *    broken email. Warning by default; failing a build over square
+ *    corners is how a checker gets switched off.
+ *
+ * Property matchers use a (?<![\w-]) lookbehind, NOT \b: a hyphen is a
+ * word boundary, so /\btransform\s*:/ also matches text-transform: —
+ * a different, fully supported property. The 0.1.0 beta against
+ * ScoutCreate produced 43 false positives from that one shape
+ * (likewise background-position → position, column-gap → gap,
+ * fill-opacity → opacity). The lookbehind excludes hyphenated and
+ * vendor-prefixed (-webkit-transform) names.
  */
-const OUTLOOK_UNSUPPORTED = [
+function propRe(name) {
+  return new RegExp(`(?<![\\w-])${name}\\s*:`, 'i');
+}
+
+const OUTLOOK_STRUCTURAL = [
   { re: /display\s*:\s*(inline-)?flex\b/i, name: 'display: flex' },
   { re: /display\s*:\s*(inline-)?grid\b/i, name: 'display: grid' },
-  { re: /\bposition\s*:/i, name: 'position:' },
-  { re: /\bfloat\s*:/i, name: 'float:' },
-  { re: /\bgap\s*:/i, name: 'gap:' },
-  { re: /\bborder-radius\s*:/i, name: 'border-radius' },
-  { re: /\bbox-shadow\s*:/i, name: 'box-shadow' },
-  { re: /\btext-shadow\s*:/i, name: 'text-shadow' },
-  { re: /\bopacity\s*:/i, name: 'opacity' },
-  { re: /\btransform\s*:/i, name: 'transform' },
-  { re: /\btransition\s*:/i, name: 'transition' },
-  { re: /\banimation\s*:/i, name: 'animation' },
+  { re: propRe('position'), name: 'position:' },
+  { re: propRe('float'), name: 'float:' },
+  { re: propRe('gap'), name: 'gap:' },
+  { re: propRe('transform'), name: 'transform' },
+  { re: propRe('transition'), name: 'transition' },
+  { re: propRe('animation'), name: 'animation' },
+];
+
+const OUTLOOK_COSMETIC = [
+  { re: propRe('border-radius'), name: 'border-radius' },
+  { re: propRe('box-shadow'), name: 'box-shadow' },
+  { re: propRe('text-shadow'), name: 'text-shadow' },
+  { re: propRe('opacity'), name: 'opacity' },
   { re: /linear-gradient\s*\(/i, name: 'linear-gradient()' },
-  { re: /\bbackground-size\s*:/i, name: 'background-size' },
+  { re: propRe('background-size'), name: 'background-size' },
 ];
 
 function cssRegions(content) {
@@ -58,7 +78,7 @@ function cssRegions(content) {
 function ruleOutlookCss(content) {
   const findings = [];
   for (const region of cssRegions(content)) {
-    for (const item of OUTLOOK_UNSUPPORTED) {
+    for (const item of OUTLOOK_STRUCTURAL) {
       const re = new RegExp(item.re.source, 'gi');
       let m;
       while ((m = re.exec(region.text)) !== null) {
@@ -68,6 +88,35 @@ function ruleOutlookCss(content) {
           message: `"${item.name}" is ignored by Outlook for Windows (Word rendering engine) — this layout will break for Outlook recipients. Use table-based layout for anything structural.`,
         });
       }
+    }
+    for (const item of OUTLOOK_COSMETIC) {
+      const re = new RegExp(item.re.source, 'gi');
+      let m;
+      while ((m = re.exec(region.text)) !== null) {
+        findings.push({
+          rule: 'outlook_cosmetic',
+          line: lineOf(content, region.offset + m.index),
+          message: `"${item.name}" is ignored by Outlook for Windows (Word rendering engine) — the email degrades gracefully: the property is dropped and the layout stays intact.`,
+        });
+      }
+    }
+  }
+  /* Button chrome on an <a> tag is the most common real Outlook break
+   * in transactional mail: Outlook ignores padding and
+   * display:inline-block on anchors, so a styled call-to-action renders
+   * as an unpadded link — and white link text can land on a white card.
+   * The ScoutCreate beta's real bug was exactly this, on lines 0.1.0
+   * only flagged for border-radius. */
+  const anchorRe = /<a\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+  let a;
+  while ((a = anchorRe.exec(content)) !== null) {
+    const style = (a[0].match(/style\s*=\s*"([^"]*)"/i) || a[0].match(/style\s*=\s*'([^']*)'/i) || [])[1] || '';
+    if (/(?<![\w-])display\s*:\s*inline-block/i.test(style) || /(?<![\w-])padding\s*:/i.test(style)) {
+      findings.push({
+        rule: 'outlook_css',
+        line: lineOf(content, a.index),
+        message: 'Button chrome on an <a> tag: Outlook for Windows ignores padding and display:inline-block on anchors, so this call-to-action can render as an unpadded (possibly white-on-white) link. Put bgcolor and padding on a surrounding <td> and keep the anchor as plain text.',
+      });
     }
   }
   return findings;
@@ -127,14 +176,19 @@ function ruleBlankVariables(content) {
   return findings;
 }
 
-/* ---------- link extraction shared by the link rules ---------- */
+/* ---------- link extraction shared by the link rules ----------
+ * Anchor hrefs only — the links a customer can click. <link> hrefs
+ * (stylesheets, preconnects) are resources, not destinations: 0.1.0
+ * failed Google Fonts hosts as "staging links" on every email in the
+ * ScoutCreate beta, which is how a checker teaches users to ignore it.
+ */
 function extractLinks(content) {
   const links = [];
-  const re = /href\s*=\s*"([^"]*)"|href\s*=\s*'([^']*)'/gi;
+  const tagRe = /<a\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
   let m;
-  while ((m = re.exec(content)) !== null) {
-    const url = m[1] !== undefined ? m[1] : m[2];
-    links.push({ url, index: m.index });
+  while ((m = tagRe.exec(content)) !== null) {
+    const href = m[0].match(/href\s*=\s*"([^"]*)"/i) || m[0].match(/href\s*=\s*'([^']*)'/i);
+    if (href) links.push({ url: href[1], index: m.index });
   }
   return links;
 }
@@ -161,13 +215,25 @@ const SUSPICIOUS_HOST = [
   { re: /^(staging|stage|dev|test|qa|uat|sandbox)[.-]/, name: 'non-production host label' },
 ];
 
+function hostMatches(hostNoPort, domain) {
+  // Exact host, or a subdomain of it on a dot boundary:
+  // www.example.com matches production_domain example.com.
+  return hostNoPort === domain || hostNoPort.endsWith('.' + domain);
+}
+
 function ruleStagingLinks(content, cfg) {
   const findings = [];
+  const prod = cfg.production_domain ? String(cfg.production_domain).toLowerCase() : null;
+  const allowed = (cfg.allow_domains || []).map((d) => String(d).toLowerCase());
   for (const { url, index } of extractLinks(content)) {
     if (!/^https?:\/\//i.test(url)) continue; // mailto:, tel:, #anchors, template URLs
     const host = hostOf(url);
     if (!host) continue;
     const hostNoPort = host.split(':')[0];
+    // The allow list wins over every other check, including the
+    // suspicious-label list: allowlisting demo.example.com is how a
+    // user says "that one is intended" (0.1.0 flagged it anyway).
+    if (allowed.some((d) => hostMatches(hostNoPort, d))) continue;
     const suspicious = SUSPICIOUS_HOST.find((s) => s.re.test(hostNoPort));
     if (suspicious) {
       findings.push({
@@ -177,16 +243,12 @@ function ruleStagingLinks(content, cfg) {
       });
       continue;
     }
-    if (cfg.production_domain) {
-      const prod = String(cfg.production_domain).toLowerCase();
-      const allowed = (cfg.allow_domains || []).map((d) => String(d).toLowerCase());
-      if (hostNoPort !== prod && !allowed.includes(hostNoPort)) {
-        findings.push({
-          rule: 'staging_links',
-          line: lineOf(content, index),
-          message: `Link host "${hostNoPort}" is not your production domain (${prod}) and is not in allow_domains: ${url.slice(0, 90)} — if this third-party link is intended, add the host to allow_domains.`,
-        });
-      }
+    if (prod && !hostMatches(hostNoPort, prod)) {
+      findings.push({
+        rule: 'staging_links',
+        line: lineOf(content, index),
+        message: `Link host "${hostNoPort}" is not your production domain (${prod}) and is not in allow_domains: ${url.slice(0, 90)} — if this third-party link is intended, add the host to allow_domains.`,
+      });
     }
   }
   return findings;
@@ -219,7 +281,11 @@ function ruleInsecureLinks(content) {
  * query exists anywhere in the file.
  */
 function ruleDarkMode(content) {
-  const hasDarkHandling = /prefers-color-scheme\s*:\s*dark/i.test(content);
+  // Handling counts as: a prefers-color-scheme media query, OR a
+  // color-scheme / supported-color-schemes meta declaration (the
+  // "light only" opt-out is a legitimate strategy — 0.1.0 missed it).
+  const hasDarkHandling = /prefers-color-scheme\s*:\s*dark/i.test(content)
+    || /<meta[^>]*name\s*=\s*["'](?:color-scheme|supported-color-schemes)["']/i.test(content);
   if (hasDarkHandling) return [];
   const lightSignals = [
     /bgcolor\s*=\s*"#(fff|ffffff)"/i,
@@ -232,7 +298,7 @@ function ruleDarkMode(content) {
   return [{
     rule: 'dark_mode',
     line: lineOf(content, idx),
-    message: 'Template hard-codes light-theme colours but has no @media (prefers-color-scheme: dark) handling — in dark mode several clients will render dark text on a darkened background. Add dark-mode rules or use colour values that survive inversion.',
+    message: 'Template hard-codes light-theme colours but has no dark-mode handling (no prefers-color-scheme rules, no color-scheme meta) — clients that force-darken mail may render dark text on a darkened background. Add dark-mode rules, declare a color-scheme meta, or use colour values that survive inversion.',
   }];
 }
 
@@ -242,7 +308,10 @@ function ruleDarkMode(content) {
  */
 function ruleImageAlt(content) {
   const findings = [];
-  const re = /<img\b[^>]*>/gi;
+  // Quote-aware tag match: a plain [^>]* stops at the > inside an ERB
+  // <%= ... %> in an attribute value and reports a phantom missing alt
+  // (seen in the ScoutCreate beta's ERB pass).
+  const re = /<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
   let m;
   while ((m = re.exec(content)) !== null) {
     if (!/\balt\s*=/i.test(m[0])) {
