@@ -1,5 +1,5 @@
 name: 'Email Preflight'
-description: 'Catch broken transactional email before it ships — checks rendered email HTML for Outlook-breaking CSS, Gmail size clipping, unfilled variables, staging links, dark-mode traps, and more.'
+description: 'Catch broken transactional email before it ships — Outlook CSS, Gmail clipping, unfilled variables, staging links, dark mode'
 author: 'Email Preflight'
 branding:
   icon: 'mail'
